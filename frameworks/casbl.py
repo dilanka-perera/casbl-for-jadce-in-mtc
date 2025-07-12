@@ -2,8 +2,7 @@ import numpy as np
 
 def casbl(theta, y, noise_var, loc,
                         alpha=1.00, beta=0.1, rho=7, U=20,
-                        max_iter=500, stopping_criterion=1e-4,
-                        gamma_update_mode="clip", tau=0.05):
+                        max_iter=500, stopping_criterion=1e-4):
     """
     Correlation-Aware Sparse Bayesian Learning (CASBL) for MMV.
 
@@ -52,17 +51,10 @@ def casbl(theta, y, noise_var, loc,
         gamma_new = (np.sqrt(1 + 4 * P * Q) - 1) / (2 * P)
         gamma_new = np.real(gamma_new)
 
-        # Map gamma values to [0, 1] using chosen activation strategy
-        if gamma_update_mode == "clip":
-            gamma_new = np.clip(gamma_new, 0, 1)
-        elif gamma_update_mode == "sigmoid":
-            gamma_new = 1 / (1 + np.exp(-gamma_new))
-        elif gamma_update_mode == "binary":
-            gamma_new = (gamma_new >= tau).astype(float)
-        else:
-            raise ValueError("gamma_update_mode must be 'clip', 'sigmoid', or 'binary'")
+        # Clip gamma values to the [0, 1] range
+        gamma_new = np.clip(gamma_new, 0, 1)
 
-        # Save history
+        #Save history
         mu_z_history.append(mu_z.copy())
         gamma_history.append(gamma_new.copy())
 
