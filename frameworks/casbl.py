@@ -1,17 +1,44 @@
 import numpy as np
 
-def casbl(theta, y, noise_var, loc,
-                        alpha=1.00, beta=0.1, rho=7, U=20,
-                        max_iter=500, stopping_criterion=1e-4):
+def casbl(
+    theta: np.ndarray,
+    y: np.ndarray,
+    noise_var: float,
+    omega: np.ndarray,
+    max_iter: int = 500,
+    stopping_criterion: float = 1e-4
+) -> tuple[np.ndarray, np.ndarray, list[np.ndarray], list[np.ndarray], int]:
     """
-    Correlation-Aware Sparse Bayesian Learning (CASBL) for MMV.
+    Correlation Aware Sparse Bayesian Learning (CASBL) for Multiple Measurement Vectors (MMV).
 
-    Returns:
-    - gamma_new: Final soft gamma vector (pre-threshold)
-    - mu_z: Final posterior mean estimate
-    - gamma_history: List of gamma vectors (length = max_iter)
-    - mu_z_history: List of mu_z matrices (length = max_iter)
-    - iteration_count: Number of iterations actually executed
+    Parameters
+    ----------
+    theta : np.ndarray
+        Pilot matrix (L x N).
+    y : np.ndarray
+        Received signal matrix (L x M).
+    noise_var : float
+        Noise variance.
+    omega : np.ndarray
+        Structured matrix (N x N) that encodes device correlations.
+        Can be constructed using ANC or other methods.
+    max_iter : int, optional
+        Maximum number of EM iterations (default=500).
+    stopping_criterion : float, optional
+        Convergence tolerance (default=1e-4).
+
+    Returns
+    -------
+    gamma_new : np.ndarray
+        Final activity vector.
+    mu_z : np.ndarray
+        Final posterior mean estimates of signals.
+    gamma_history : list[np.ndarray]
+        History of activity estimates per iteration.
+    mu_z_history : list[np.ndarray]
+        History of posterior mean estimates per iteration.
+    iteration_count : int
+        Number of iterations until convergence.
     """
 
     M = y.shape[1]
@@ -20,15 +47,6 @@ def casbl(theta, y, noise_var, loc,
 
     # Initialize Gamma
     Gamma = np.eye(N) * 0.1
-
-    # Spatial correlation matrix
-    if rho == 0:
-        correlation_matrix = np.eye(N)
-    else:
-        distance_matrix = np.linalg.norm(loc[:, np.newaxis, :] - loc[np.newaxis, :, :], axis=2)
-        correlation_matrix = np.maximum(
-            (np.exp(-distance_matrix / rho) - np.exp(-U / rho)) / (1 - np.exp(-U / rho)), 0
-        )
 
     # Initialize histories
     gamma_history = []
@@ -43,18 +61,16 @@ def casbl(theta, y, noise_var, loc,
         mu_z = Gamma @ theta.conj().T @ Sigma_y_inv @ y
 
         # Q and P
-        Q = (np.linalg.norm(mu_z, axis=1) ** 2) / M + np.diag(Sigma_z)
-        P = 2 * alpha * (beta - correlation_matrix) @ np.diag(Gamma)
-        P = np.maximum(P, 1e-8)
+        Q = (np.linalg.norm(mu_z, axis=1) ** 2) / M + np.real(np.diag(Sigma_z))
+        P = 2 * omega @ np.diag(Gamma)
+        P = np.maximum(P, 1e-8) # Ensure numerical stability
 
         # Gamma update
         gamma_new = (np.sqrt(1 + 4 * P * Q) - 1) / (2 * P)
         gamma_new = np.real(gamma_new)
+        gamma_new = np.maximum(gamma_new, 1e-8) # Ensure numerical stability
 
-        # Clip gamma values to the [0, 1] range
-        gamma_new = np.clip(gamma_new, 0, 1)
-
-        #Save history
+        # Save history
         mu_z_history.append(mu_z.copy())
         gamma_history.append(gamma_new.copy())
 
@@ -77,3 +93,20 @@ def casbl(theta, y, noise_var, loc,
         mu_z_history.extend(mu_z_pad)
 
     return gamma_new, mu_z, gamma_history, mu_z_history, iteration_count
+
+
+def build_omega_anc(loc: np.ndarray, rho: float = 7, U: float = 20, alpha: float = 1.00, beta: float = 0.1) -> np.ndarray:
+    """
+    ANC precision matrix from device locations.
+    Omega = alpha * (beta - C)
+    """
+    N = loc.shape[0]
+    if rho == 0:
+        correlation_matrix = np.eye(N)
+    else:
+        distance_matrix = np.linalg.norm(loc[:, None, :] - loc[None, :, :], axis=2)
+        correlation_matrix = np.maximum(
+            (np.exp(-distance_matrix / rho) - np.exp(-U / rho)) / (1.0 - np.exp(-U / rho)),
+            0.0,
+        )
+    return alpha * (beta - correlation_matrix)

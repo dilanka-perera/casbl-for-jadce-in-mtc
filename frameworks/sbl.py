@@ -1,15 +1,40 @@
 import numpy as np
 
-def sbl(theta, y, noise_var, max_iter=500, stopping_criterion=1e-4):
+def sbl(
+    theta: np.ndarray,
+    y: np.ndarray,
+    noise_var: float,
+    max_iter: int = 500,
+    stopping_criterion: float = 1e-4
+) -> tuple[np.ndarray, np.ndarray, list[np.ndarray], list[np.ndarray], int]:
     """
     Sparse Bayesian Learning (SBL) for Multiple Measurement Vectors (MMV).
 
-    Returns:
-    - gamma_new: Final soft gamma vector
-    - mu_z: Final posterior mean estimate
-    - gamma_history: List of gamma vectors (length = max_iter)
-    - mu_z_history: List of mu_z matrices (length = max_iter)
-    - iteration_count: Number of iterations executed before convergence
+    Parameters
+    ----------
+    theta : np.ndarray
+        Pilot matrix (L x N).
+    y : np.ndarray
+        Received signal matrix (L x M).
+    noise_var : float
+        Noise variance.
+    max_iter : int, optional
+        Maximum number of EM iterations (default=500).
+    stopping_criterion : float, optional
+        Convergence tolerance (default=1e-4).
+
+    Returns
+    -------
+    gamma_new : np.ndarray
+        Final activity vector.
+    mu_z : np.ndarray
+        Final posterior mean estimates of signals.
+    gamma_history : list[np.ndarray]
+        History of activity estimates per iteration.
+    mu_z_history : list[np.ndarray]
+        History of posterior mean estimates per iteration.
+    iteration_count : int
+        Number of iterations until convergence.
     """
 
     M = y.shape[1]
@@ -20,9 +45,9 @@ def sbl(theta, y, noise_var, max_iter=500, stopping_criterion=1e-4):
     Gamma = np.eye(N) * 0.1
 
     # Initialize histories
-    gamma_history = []
-    mu_z_history = []
-    iteration_count = max_iter # default unless convergence occurs earlier
+    gamma_history: list[np.ndarray] = []
+    mu_z_history: list[np.ndarray] = []
+    iteration_count = max_iter  # default unless convergence occurs earlier
 
     for t in range(max_iter):
         # E-step
@@ -33,7 +58,7 @@ def sbl(theta, y, noise_var, max_iter=500, stopping_criterion=1e-4):
 
         # Gamma update
         gamma_new = (np.linalg.norm(mu_z, axis=1) ** 2) / M + np.real(np.diag(Sigma_z))
-        gamma_new = np.maximum(gamma_new, 1e-8)  # Ensure positivity
+        gamma_new = np.maximum(gamma_new, 1e-8)  # Ensure positivity / numerical stability
 
         # Save history
         mu_z_history.append(mu_z.copy())
@@ -49,7 +74,7 @@ def sbl(theta, y, noise_var, max_iter=500, stopping_criterion=1e-4):
         # Update Gamma
         Gamma = np.diagflat(gamma_new)
 
-    # Pad history if converged early
+    # Pad histories if convergence occurred early
     pad_len = max_iter - len(gamma_history)
     if pad_len > 0:
         gamma_pad = [gamma_history[-1].copy()] * pad_len
