@@ -58,7 +58,7 @@ def sbl(
 
         # Gamma update
         gamma_new = (np.linalg.norm(mu_z, axis=1) ** 2) / M + np.real(np.diag(Sigma_z))
-        gamma_new = np.maximum(gamma_new, 1e-8)  # Ensure positivity / numerical stability
+        gamma_new = np.maximum(gamma_new, 0)  # Ensure positivity (Avoiding negative values from numerical errors)
 
         # Save history
         mu_z_history.append(mu_z.copy())

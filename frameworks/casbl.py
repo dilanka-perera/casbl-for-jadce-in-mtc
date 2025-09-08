@@ -62,13 +62,16 @@ def casbl(
 
         # Q and P
         Q = (np.linalg.norm(mu_z, axis=1) ** 2) / M + np.real(np.diag(Sigma_z))
+        Q = np.maximum(Q, 0)  # Ensure positivity (Avoiding negative values from numerical errors)
         P = 2 * omega @ np.diag(Gamma)
-        P = np.maximum(P, 1e-8) # Ensure numerical stability
 
         # Gamma update
-        gamma_new = (np.sqrt(1 + 4 * P * Q) - 1) / (2 * P)
+        gamma_new = np.empty_like(Q, dtype=float)
+        mask = P > 0
+        gamma_new[mask] = (2 * Q[mask]) / (np.sqrt(1 + 4 * P[mask] * Q[mask]) + 1)
+        gamma_new[~mask] = Q[~mask]
         gamma_new = np.real(gamma_new)
-        gamma_new = np.maximum(gamma_new, 1e-8) # Ensure numerical stability
+        gamma_new = np.maximum(gamma_new, 0)  # Ensure positivity (Avoiding negative values from numerical errors)
 
         # Save history
         mu_z_history.append(mu_z.copy())
